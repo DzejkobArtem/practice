@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import os
 import configparser
 import pandas as pd
@@ -12,7 +9,6 @@ from odf import opendocument, table
 
 
 def load_config(config_path='config.ini'):
-    """Загрузка конфигурации из файла"""
     config = configparser.ConfigParser()
     if not os.path.exists(config_path):
         print(f"Ошибка: Файл конфигурации {config_path} не найден!")
@@ -23,7 +19,6 @@ def load_config(config_path='config.ini'):
 
 
 def get_odf_data(file_path):
-    """Чтение данных из ODF файла (ODS)"""
     try:
         doc = opendocument.load(file_path)
         sheets = doc.spreadsheet.getElementsByType(table.Table)
@@ -35,10 +30,9 @@ def get_odf_data(file_path):
                 for cell in row.getElementsByType(table.TableCell):
                     text = "".join([str(t) for t in cell.childNodes if t.nodeType == 1])
                     row_data.append(text)
-                if row_data:  # пропускаем пустые строки
+                if row_data:
                     data.append(row_data)
 
-        # Преобразуем в DataFrame (предполагаем, что первая строка - заголовки)
         df = pd.DataFrame(data[1:], columns=data[0])
         return df
     except Exception as e:
@@ -47,9 +41,7 @@ def get_odf_data(file_path):
 
 
 def prepare_data(df, filename):
-    """Подготовка данных для загрузки в MSSQL"""
     try:
-        # Преобразование данных в нужный формат
         prepared_data = []
         for _, row in df.iterrows():
             prepared_row = {
@@ -79,7 +71,6 @@ def prepare_data(df, filename):
 
 
 def create_connection(config):
-    """Создание подключения к MSSQL"""
     try:
         conn_str = (
             f"DRIVER={{ODBC Driver 17 for SQL Server}};"
@@ -95,11 +86,9 @@ def create_connection(config):
 
 
 def insert_data(conn, data, table_name):
-    """Вставка данных в MSSQL"""
     try:
         cursor = conn.cursor()
 
-        # SQL-запрос для вставки
         sql = f"""
         INSERT INTO {table_name} (
             код_МТР, склад_мол, номер_документа, Дата, старый_заказ, 
@@ -108,7 +97,7 @@ def insert_data(conn, data, table_name):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
-        # Подготовка данных для вставки
+
         insert_data = []
         for row in data:
             insert_data.append((
@@ -118,7 +107,7 @@ def insert_data(conn, data, table_name):
                 row['кто_загрузил']
             ))
 
-        # Выполнение вставки
+
         cursor.executemany(sql, insert_data)
         conn.commit()
         return cursor.rowcount
@@ -131,22 +120,22 @@ def insert_data(conn, data, table_name):
 
 
 def process_files(config):
-    """Обработка всех ODS файлов в указанной директории"""
+
     input_dir = config['DEFAULT']['input_dir']
     table_name = config['MSSQL']['table_name']
 
-    # Проверка существования директории
+
     if not os.path.isdir(input_dir):
         print(f"Ошибка: Директория {input_dir} не существует!")
         return
 
-    # Подключение к MSSQL
+
     conn = create_connection(config)
     if not conn:
         return
 
     try:
-        # Поиск всех ODS файлов в директории
+
         ods_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.ods')]
 
         if not ods_files:
@@ -158,19 +147,19 @@ def process_files(config):
             file_path = os.path.join(input_dir, filename)
             print(f"Обработка файла: {filename}")
 
-            # Чтение данных из ODS
+
             df = get_odf_data(file_path)
             if df is None or df.empty:
                 print(f"Не удалось прочитать данные из файла {filename} или файл пуст")
                 continue
 
-            # Подготовка данных
+
             prepared_data = prepare_data(df, filename)
             if not prepared_data:
                 print(f"Не удалось подготовить данные из файла {filename}")
                 continue
 
-            # Вставка данных в MSSQL
+
             inserted_rows = insert_data(conn, prepared_data, table_name)
             total_rows += inserted_rows
             print(f"Добавлено {inserted_rows} строк из файла {filename}")
@@ -184,7 +173,7 @@ def process_files(config):
 def main():
     print("=== Загрузчик данных из ODS в MSSQL ===")
 
-    # Проверка наличия необходимых модулей
+
     try:
         import pyodbc
         from odf import opendocument, table
@@ -194,10 +183,10 @@ def main():
         print("pip install pyodbc odfpy")
         sys.exit(1)
 
-    # Загрузка конфигурации
+
     config = load_config()
 
-    # Обработка файлов
+
     process_files(config)
 
 
